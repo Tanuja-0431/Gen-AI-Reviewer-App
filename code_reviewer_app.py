@@ -3,18 +3,17 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Load the Hugging Face model and tokenizer
 model_name = "gpt2"  # Change this if needed
-token="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"
-
+token="YOUR_GOOGLE_API"
 model = AutoModelForCausalLM.from_pretrained(model_name, cache_dir="./cache")
 tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir="./cache")
 tokenizer.pad_token = tokenizer.eos_token
 
 # Streamlit UI
-st.title("GenAI Code Reviewer ")
-st.write("Submit your Python code for review and receive feedback along with fixed snippets.")
+st.title("🧑‍💻 GenAI Code Reviewer")
+st.write("Submit your Python code for review and receive feedback along with fixed snippets. 🚀")
 
 # Input Section
-code_input = st.text_area("Enter your Python code here:", height=200)
+code_input = st.text_area("📝 Enter your Python code here:", height=200)
 
 # Function to analyze Python code
 def analyze_code_with_huggingface(code):
@@ -22,8 +21,9 @@ def analyze_code_with_huggingface(code):
     try:
         compile(code, "<string>", "exec")
     except SyntaxError as e:
-        st.error(f"Syntax Error: {e}")
-        return None  # Return None if syntax is invalid
+        st.error(f"❌ Syntax Error: {e}")
+        corrected_code = suggest_correction(code, e)
+        return None, corrected_code  # Return None if syntax is invalid, along with corrected code
     
     # Prepare the input prompt for the model
     prompt = f"""
@@ -50,7 +50,7 @@ def analyze_code_with_huggingface(code):
     try:
         outputs = model.generate(
             inputs['input_ids'],
-            max_length=500,
+            max_length=500,  # Limit the length of the response
             num_return_sequences=1,
             num_beams=5,
             repetition_penalty=1.2,
@@ -59,16 +59,36 @@ def analyze_code_with_huggingface(code):
         
         # Decode and return the result
         result = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return result
+        return result, None  # Return the result and None for corrected code
     except Exception as e:
-        st.error(f"Error during model inference: {e}")
-        return None
+        st.error(f"⚠️ Error during model inference: {e}")
+        return None, None
+
+# Function to suggest corrections for common syntax errors
+def suggest_correction(code, error):
+    error_message = str(error)
+    
+    # Example corrections for common syntax errors
+    if "unexpected EOF while parsing" in error_message:
+        return code + "\n# Added missing closing bracket or parenthesis"
+    elif "invalid syntax" in error_message:
+        # Attempt to fix common issues
+        lines = code.splitlines()
+        for i, line in enumerate(lines):
+            if line.strip().endswith(":") and not line.strip().endswith(":\n"):
+                lines[i] += " # Added missing indentation or code block"
+            elif line.strip() == "":
+                lines[i] = "# Check for missing code here"
+        return "\n".join(lines)  # Return the modified code
+    # Add more specific error handling as needed
+
+    return code  # Return the original code if no specific correction is suggested
 
 # Function to parse response into issues, suggestions, and fixed code
 def parse_response(response):
-    issues = "No issues found."
-    suggestions = "No suggestions provided."
-    fixed_code = "No fixed code provided."
+    issues = "✅ No issues found."
+    suggestions = "💡 No suggestions provided."
+    fixed_code = "🔧 No fixed code provided."
 
     # Improved parsing logic
     if "Issues:" in response:
@@ -79,33 +99,36 @@ def parse_response(response):
         fixed_code = response.split("Fixed Code:")[1].strip()
     
     # Check if the code is correct
-    if "looks good" in response.lower():
-        issues = "No issues found."
-        suggestions = "The code is correct. No changes needed."
-        fixed_code = "No fixed code provided."
+    if "looks good" in response .lower():
+        issues = "✅ No issues found."
+        suggestions = "The code is correct. No changes needed. 🎉"
+        fixed_code = "🔧 No fixed code provided."
 
     return issues, suggestions, fixed_code
 
 # Analyze the code when the button is pressed
-if st.button("Submit for Review"):
+if st.button("🔍 Submit for Review"):
     if code_input.strip():
-        st.info("Analyzing your code...")
-        
+        st.info("🔄 Analyzing your code...")
         # Call the function to analyze the code
-        response = analyze_code_with_huggingface(code_input)
+        response, corrected_code = analyze_code_with_huggingface(code_input)
 
         if response:
             issues, suggestions, fixed_code = parse_response(response)
-            st.success("Code Review Complete!")
+            st.success("✅ Code Review Complete!")
             
             # Display results
-            st.subheader("Issues:")
+            st.subheader("🛠️ Issues:")
             st.write(issues)
             
-            st.subheader("Suggestions:")
+            st.subheader("💡 Suggestions:")
             st.write(suggestions)
             
-            st.subheader("Suggested Fix:")
-            st.code(fixed_code, language=' python')
+            st.subheader("🔧 Suggested Fix:")
+            st.code(fixed_code, language='python')
+        
+        if corrected_code:
+            st.subheader("🛠️ Suggested Correction for Syntax Error:")
+            st.code(corrected_code, language='python')
     else:
-        st.warning("Please enter some code before submitting.")
+        st.warning("⚠️ Please enter some code before submitting.")
